@@ -1,0 +1,176 @@
+{
+  "schemaVersion": 1,
+  "site": {
+    "pageTitle": "Portfolio",
+    "metaDescription": "Portfolio of a developer building modern, functional and user focused web applications.",
+    "navName": "Okikiola Toloruntomi",
+    "navButton": {
+      "label": "Let's Talk",
+      "target": "#contact"
+    }
+  },
+  "hero": {
+    "heading": "Building digital experiences that matter",
+    "highlight": "matter",
+    "description": "I am a developer who builds modern, functional, and user focused web applications.",
+    "image": "images/pexels-dkomov-34803979.jpg",
+    "imageAlt": "Workspace",
+    "available": true,
+    "statusText": "Available for new projects",
+    "primaryButton": {
+      "label": "Explore My Work",
+      "target": "#projects"
+    },
+    "secondaryButton": {
+      "label": "Get In Touch",
+      "target": "#contact"
+    }
+  },
+  "profile": {
+    "name": "Okikiola Toloruntomi",
+    "image": "images/avatar.jpg",
+    "imageAlt": "Avatar",
+    "aboutHeading": "I am",
+    "aboutDescription": "I'm a passionate developer who loves solving real-world problems through clean, efficient and scalable code. I specialize in modern web technologies and enjoy building products that are fast, accessible and easy to use."
+  },
+  "contact": {
+    "tag": "Contact Me",
+    "heading": "Let's build something amazing together.",
+    "highlight": "together.",
+    "text": "Have a project in mind, a question, or just want to say hello?\nI'd love to hear from you.",
+    "email": "okikiolatoloruntomi1234@gmail.com",
+    "buttonLabel": "Email Me",
+    "bannerImage": "images/pexels-dkomov-34803979.jpg"
+  },
+  "socials": [
+    {
+      "id": "social-linkedin",
+      "platform": "linkedin",
+      "url": ""
+    },
+    {
+      "id": "social-github",
+      "platform": "github",
+      "url": ""
+    },
+    {
+      "id": "social-instagram",
+      "platform": "instagram",
+      "url": ""
+    }
+  ],
+  "footer": {
+    "brandName": "Okikiola.",
+    "roles": [
+      "Developer",
+      "Problem Solver",
+      "Creator"
+    ],
+    "copyright": "© 2026 Okikiola . All rights reserved."
+  },
+  "projectList": [
+    {
+      "id": "project-cipher",
+      "name": "Cipher",
+      "imageSrc": "images/cipher.png",
+      "description": "A premium platform built for learning and growth",
+      "appType": "Web App",
+      "liveUrl": "https://cipherquiz.vercel.app",
+      "githubUrl": "",
+      "updatedAt": "2026-11-09T09:00:00.000Z"
+    },
+    {
+      "id": "project-the-fish-spot",
+      "name": "The fish spot",
+      "imageSrc": "images/fishSpot.jpg",
+      "description": "A modern restaurant website for The Fish Spot.",
+      "appType": "Website",
+      "liveUrl": "https://cipherquiz.vercel.app",
+      "githubUrl": "",
+      "updatedAt": "2026-11-09T09:00:00.000Z"
+    },
+    {
+      "id": "project-task-manager",
+      "name": "Task Manager",
+      "imageSrc": "https://images.unsplash.com/photo-1540350394557-8d14678e7f91?auto=format&fit=crop&w=600&q=80",
+      "description": "A productivity tool designed to track and organize daily workflows.",
+      "appType": "Web App",
+      "liveUrl": "https://cipherquiz.vercel.app",
+      "githubUrl": "",
+      "updatedAt": "2026-11-09T09:00:00.000Z"
+    }
+  ],
+  "tools": [
+    {
+      "id": "tool-html5",
+      "name": "HTML5",
+      "logo": "images/html.jpg",
+      "updatedAt": "2026-11-09T09:00:00.000Z"
+    },
+    {
+      "id": "tool-css3",
+      "name": "CSS3",
+      "logo": "images/css.jpg",
+      "updatedAt": "2026-11-09T09:00:00.000Z"
+    },
+    {
+      "id": "tool-git",
+      "name": "Git",
+      "logo": "images/git.svg",
+      "updatedAt": "2026-11-09T09:00:00.000Z"
+    },
+    {
+      "id": "tool-javascript",
+      "name": "JavaScript",
+      "logo": "images/js.jpg",
+      "updatedAt": "2026-11-09T09:00:00.000Z"
+    },
+    {
+      "id": "tool-blender",
+      "name": "Blender",
+      "logo": "images/blender.jpg",
+      "updatedAt": "2026-11-09T09:00:00.000Z"
+    }
+  ],
+  "wds": [
+    {
+      "id": "service-web-development",
+      "logo": "images/wds/web.svg",
+      "title": "Web Development",
+      "description": "Modern, responsive and scalable web applications.",
+      "updatedAt": "2026-11-09T09:00:00.000Z"
+    },
+    {
+      "id": "service-interactive-javascript",
+      "logo": "images/wds/js.svg",
+      "title": "Interactive JavaScript",
+      "description": "Adding dynamic behavior, custom logic, and interactive features to websites using vanilla JavaScript.",
+      "updatedAt": "2026-11-09T09:00:00.000Z"
+    },
+    {
+      "id": "service-3d-modeling",
+      "logo": "images/wds/3d.svg",
+      "title": "3D Modeling & Assets",
+      "description": "Crafting custom 3D models, low-poly assets, and visual elements for digital projects using Blender.",
+      "updatedAt": "2026-11-09T09:00:00.000Z"
+    },
+    {
+      "id": "service-ui-ux",
+      "logo": "images/wds/design.svg",
+      "title": "UI/UX Development",
+      "description": "Beautiful, intuitive and user-centered designs.",
+      "updatedAt": "2026-11-09T09:00:00.000Z"
+    }
+  ],
+  "meta": {
+    "updatedAt": "2026-11-10T01:03:28.789Z",
+    "sections": {
+      "site": "2026-11-10T01:03:28.789Z",
+      "hero": "2026-11-09T09:00:00.000Z",
+      "profile": "2026-11-09T09:00:00.000Z",
+      "contact": "2026-11-09T09:00:00.000Z",
+      "socials": "2026-11-09T09:00:00.000Z",
+      "footer": "2026-11-09T09:00:00.000Z"
+    }
+  }
+}
