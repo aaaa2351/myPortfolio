@@ -1,4 +1,4 @@
-const DATA_URL = "data/portfolio.json";
+const DATA_URLS = ["/api/public/content", "/data/portfolio.json"];
 const PREVIEW_CHANNEL = "portfolio-cms";
 const FOCUS_TARGETS = ["home", "projects", "about", "services", "contact"];
 
@@ -487,18 +487,26 @@ function render(content) {
   document.querySelector(".wdss").replaceChildren(...content.wds.map(serviceCard));
 }
 
+async function fetchContent(url) {
+  const response = await fetch(url, {
+    cache: "no-cache",
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const type = response.headers.get("content-type") || "";
+  if (!type.includes("json")) throw new Error("Unexpected content type");
+  return response.json();
+}
+
 async function loadContent() {
-  try {
-    const response = await fetch(DATA_URL, {
-      cache: "no-cache",
-      headers: { Accept: "application/json" },
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return sanitize(await response.json());
-  } catch (error) {
-    console.warn("Portfolio data could not be loaded. Showing built-in content.", error);
-    return sanitize(FALLBACK_CONTENT);
+  for (const url of DATA_URLS) {
+    try {
+      return sanitize(await fetchContent(url));
+    } catch (error) {
+      console.warn(`Portfolio data could not be loaded from ${url}.`, error);
+    }
   }
+  return sanitize(FALLBACK_CONTENT);
 }
 
 function toggleMenu() {

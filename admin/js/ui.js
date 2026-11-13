@@ -113,6 +113,33 @@ export function confirmDialog({ title, message, confirmLabel = 'Confirm', danger
   });
 }
 
+export function confirmTyped({ title, message, expected, confirmLabel = 'Confirm', danger = true, detail, hint }) {
+  return new Promise((resolve) => {
+    let answer = false;
+    const input = h('input', { type: 'text', class: 'typed-input', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', 'aria-label': `Type ${expected} to confirm` });
+    const confirmButton = btn(confirmLabel, { variant: danger ? 'danger' : 'primary', disabled: true, onClick: () => { answer = true; modal.close(); } });
+    input.addEventListener('input', () => {
+      confirmButton.disabled = input.value.trim() !== expected;
+    });
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !confirmButton.disabled) confirmButton.click();
+    });
+    const modal = openModal({
+      title,
+      size: 'sm',
+      body: [
+        h('p', { class: 'confirm-text' }, message),
+        detail && h('p', { class: 'muted confirm-detail' }, detail),
+        h('label', { class: 'typed-label' }, hint || 'Type ', h('code', {}, expected), ' to confirm'),
+        input
+      ],
+      footer: [btn('Cancel', { variant: 'ghost', onClick: () => modal.close() }), confirmButton],
+      onClose: () => resolve(answer)
+    });
+    input.focus();
+  });
+}
+
 export function emptyState({ iconName, title, text, action }) {
   return h(
     'div',

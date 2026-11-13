@@ -1,6 +1,6 @@
 import { h, formatBytes, formatDate, timeAgo, plural } from '../dom.js';
 import { api } from '../api.js';
-import { isDirty } from '../state.js';
+import { isDirty, store } from '../state.js';
 import { pageHeader, btn, openModal, confirmDialog, toast, emptyState, chip, setBusy } from '../ui.js';
 
 export function backupsView(context) {
@@ -17,16 +17,16 @@ export function backupsView(context) {
     const confirmed = await confirmDialog({
       title: 'Restore this backup?',
       message: `The portfolio will be replaced with the version from ${formatDate(entry.createdAt, true)}.`,
-      detail: `Your current saved version is backed up first, so you can undo this.${dirty ? ' Unsaved changes in this draft will be discarded.' : ''}`,
+      detail: `Your current draft is backed up first, so you can undo this. The live site does not change until you publish.${dirty ? ' Unsaved changes in this draft will be discarded.' : ''}`,
       confirmLabel: 'Restore backup',
       danger: true
     });
     if (!confirmed) return;
     try {
-      const result = await api.restore(entry.name);
+      const result = await api.restore(entry.name, store.revision === null ? undefined : store.revision);
       if (closeModal) closeModal();
       await context.reloadContent();
-      toast(result.unchanged ? 'That backup matches the current version, so nothing changed.' : 'Backup restored. The previous version was backed up first.', { kind: 'success' });
+      toast(result.unchanged ? 'That backup matches the current version, so nothing changed.' : 'Backup restored to your draft. Publish to make it live.', { kind: 'success' });
       load();
     } catch (error) {
       toast(error.message, { kind: 'error' });
@@ -89,7 +89,7 @@ export function backupsView(context) {
     body.replaceChildren(rows);
   }
 
-  root.append(pageHeader({ title: 'Backups', description: 'A timestamped copy of the previous version is saved in data/backups before every successful save and restore. Backups are never deleted automatically.' }), body);
+  root.append(pageHeader({ title: 'Backups', description: 'A timestamped copy of the previous draft is stored in the database before every successful save and restore. Backups are never deleted automatically. Restoring changes the draft only.' }), body);
   load();
   return { el: root };
 }

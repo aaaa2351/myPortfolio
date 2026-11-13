@@ -1,6 +1,7 @@
 import { h, formatBytes, formatDate } from '../dom.js';
 import { store } from '../state.js';
-import { pageHeader, btn, openModal, toast, emptyState, segmented, setBusy } from '../ui.js';
+import { api } from '../api.js';
+import { pageHeader, btn, openModal, toast, emptyState, segmented, setBusy, confirmDialog } from '../ui.js';
 import { getImages, imageTile, imageSrc, uploadFiles, pickFiles } from '../picker.js';
 
 function usageOf(imagePath) {
@@ -15,7 +16,7 @@ function usageOf(imagePath) {
   return uses;
 }
 
-function detail(image) {
+function detail(image, onChange) {
   const uses = usageOf(image.path);
   const copyButton = btn('Copy path', {
     iconName: 'copy',
@@ -45,7 +46,31 @@ function detail(image) {
         h('div', {}, h('dt', {}, 'Used in'), h('dd', {}, uses.length ? h('ul', { class: 'plain-list' }, uses.map((use) => h('li', {}, h('a', { class: 'link', href: `#/${use.route}`, onclick: () => modal.close() }, use.label)))) : 'Not used by the current draft'))
       )
     ),
-    footer: [copyButton, btn('Close', { variant: 'primary', onClick: () => modal.close() })]
+    footer: [
+      image.deletable
+        ? btn('Delete', {
+            variant: 'danger',
+            iconName: 'trash',
+            small: true,
+            disabled: uses.length > 0,
+            title: uses.length ? 'Remove it from the draft first' : 'Delete this uploaded image',
+            onClick: async () => {
+              const ok = await confirmDialog({ title: 'Delete this image?', message: `${image.name} will be removed from storage permanently.`, detail: 'It is refused if the live site or the draft still uses it.', confirmLabel: 'Delete image', danger: true });
+              if (!ok) return;
+              try {
+                await api.removeImage(image.id);
+                modal.close();
+                toast('Image deleted.', { kind: 'success' });
+                if (onChange) onChange();
+              } catch (error) {
+                toast(error.message, { kind: 'error' });
+              }
+            }
+          })
+        : null,
+      copyButton,
+      btn('Close', { variant: 'primary', onClick: () => modal.close() })
+    ]
   });
 }
 
@@ -79,7 +104,7 @@ export function imagesView() {
         emptyState({
           iconName: 'image',
           title: images.length ? 'No matching images' : 'No images yet',
-          text: images.length ? 'Try a different search or filter.' : 'Use Upload images above, or copy your existing images folder into public/images.'
+          text: images.length ? 'Try a different search or filter.' : 'Use Upload images above. Files committed to public/images in the repository are listed too.'
         })
       );
       return;
@@ -87,7 +112,7 @@ export function imagesView() {
     grid.replaceChildren(
       ...visible.map((image) => {
         const uses = usageOf(image.path).length;
-        return imageTile(image, { onClick: () => detail(image), meta: `${formatBytes(image.size)} \u00b7 ${uses ? `used ${uses}\u00d7` : 'unused'}` });
+        return imageTile(image, { onClick: () => detail(image, () => load(true)), meta: `${formatBytes(image.size)} \u00b7 ${uses ? `used ${uses}\u00d7` : 'unused'}` });
       })
     );
   }

@@ -20,12 +20,12 @@ export async function getImages(force = false) {
 }
 
 function remember(image) {
-  const entry = { ...image, folder: 'images/uploads', modifiedAt: new Date().toISOString() };
+  const entry = { ...image, folder: image.folder || 'uploads', modifiedAt: image.modifiedAt || new Date().toISOString() };
   cache = [entry, ...(cache || []).filter((item) => item.path !== image.path)];
 }
 
 export function fileProblem(file) {
-  const max = (store.session && store.session.maxUploadBytes) || 5 * 1024 * 1024;
+  const max = (store.session && store.session.maxUploadBytes) || 4 * 1024 * 1024;
   if (!ALLOWED_EXT.test(file.name) || !['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
     return `${file.name}: only JPG, PNG and WebP images can be uploaded.`;
   }

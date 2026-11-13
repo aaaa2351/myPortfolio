@@ -23,6 +23,8 @@ export const store = {
   draft: null,
   status: null,
   session: null,
+  revision: null,
+  published: null,
   saving: false
 };
 
@@ -43,9 +45,16 @@ export function subscribe(listener) {
   return () => listeners.delete(listener);
 }
 
-export function initContent(content) {
+export function initContent(content, meta = {}) {
   store.saved = content ? clone(content) : null;
   store.draft = content ? clone(content) : null;
+  if (!content) {
+    store.revision = null;
+    store.published = null;
+  } else {
+    if (meta.revision !== undefined) store.revision = meta.revision;
+    if ('published' in meta) store.published = meta.published;
+  }
   emit();
 }
 

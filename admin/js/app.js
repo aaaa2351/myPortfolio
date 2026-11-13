@@ -1,6 +1,6 @@
 import { h, $, plural } from './dom.js';
 import { icon } from './icons.js';
-import { api } from './api.js';
+import { api, setUnauthorizedHandler } from './api.js';
 import { store, initContent, discardChanges, isDirty, diffContent, subscribe, refreshStatus } from './state.js';
 import { btn, setBusy, toast, openModal, confirmDialog, emptyState } from './ui.js';
 import { createPreview } from './preview.js';
@@ -12,6 +12,16 @@ import { toolsView } from './views/tools.js';
 import { servicesView } from './views/services.js';
 import { imagesView } from './views/images.js';
 import { backupsView } from './views/backups.js';
+import { loginView } from './views/login.js';
+import { publishingView, openPublishDialog } from './views/publishing.js';
+import { auditView } from './views/audit.js';
+import { deployOverviewView } from './views/deploy/overview.js';
+import { versionsView } from './views/deploy/versions.js';
+import { branchesView } from './views/deploy/branches.js';
+import { previewsView } from './views/deploy/previews.js';
+import { productionView } from './views/deploy/production.js';
+import { historyView } from './views/deploy/history.js';
+import { rollbacksView } from './views/deploy/rollbacks.js';
 
 const ROUTES = [
   { id: 'dashboard', label: 'Dashboard', icon: 'layout', mount: dashboardView, focus: null },
@@ -20,8 +30,17 @@ const ROUTES = [
   { id: 'profile', label: 'Profile and contact', icon: 'user', group: 'Content', mount: profileView, focus: 'about' },
   { id: 'tools', label: 'Tools', icon: 'wrench', group: 'Content', mount: toolsView, focus: 'about' },
   { id: 'services', label: 'Services', icon: 'briefcase', group: 'Content', mount: servicesView, focus: 'services' },
+  { id: 'publishing', label: 'Publishing', icon: 'globe', group: 'Content', mount: publishingView, focus: null },
+  { id: 'deploy', label: 'Overview', icon: 'gauge', group: 'Deployment', mount: deployOverviewView, focus: null, standalone: true },
+  { id: 'versions', label: 'Versions', icon: 'commit', group: 'Deployment', mount: versionsView, focus: null, standalone: true },
+  { id: 'branches', label: 'Branches', icon: 'branch', group: 'Deployment', mount: branchesView, focus: null, standalone: true },
+  { id: 'previews', label: 'Previews', icon: 'eye', group: 'Deployment', mount: previewsView, focus: null, standalone: true },
+  { id: 'production', label: 'Production', icon: 'rocket', group: 'Deployment', mount: productionView, focus: null, standalone: true },
+  { id: 'history', label: 'History', icon: 'history', group: 'Deployment', mount: historyView, focus: null, standalone: true },
+  { id: 'rollbacks', label: 'Rollbacks', icon: 'restore', group: 'Deployment', mount: rollbacksView, focus: null, standalone: true },
   { id: 'images', label: 'Images', icon: 'image', group: 'Library', mount: imagesView, focus: null },
-  { id: 'backups', label: 'Backups', icon: 'archive', group: 'Library', mount: backupsView, focus: null }
+  { id: 'backups', label: 'Backups', icon: 'archive', group: 'Library', mount: backupsView, focus: null },
+  { id: 'audit', label: 'Activity', icon: 'activity', group: 'Library', mount: auditView, focus: null, standalone: true }
 ];
 
 const LINK_TARGETS = ['#home', '#projects', '#about', '#services', '#contact'];
@@ -33,6 +52,9 @@ let preview;
 let topbarState;
 let saveButton;
 let previewButton;
+let publishButton;
+let sessionModalOpen = false;
+let heartbeat = null;
 let currentView = null;
 let currentRoute = ROUTES[0];
 let loadError = null;
@@ -65,7 +87,7 @@ function renderRoute() {
     else link.removeAttribute('aria-current');
   });
 
-  if (!store.draft && route.id !== 'backups') {
+  if (!store.draft && route.id !== 'backups' && !route.standalone) {
     main.append(renderLoadError());
   } else {
     currentView = route.mount(viewContext(params));
@@ -101,9 +123,9 @@ function renderLoadError() {
 
 async function reloadContent() {
   try {
-    const { content } = await api.content();
+    const { content, revision, published } = await api.content();
     loadError = null;
-    initContent(content);
+    initContent(content, { revision, published });
   } catch (error) {
     loadError = error;
     initContent(null);
@@ -131,7 +153,7 @@ function showValidationErrors(errors) {
   const items = (errors || []).map((error) => ({ ...error, ...locate(error.path) }));
   const modal = openModal({
     title: 'Fix these before saving',
-    description: `${plural(items.length, 'field')} need attention. Nothing was written to disk.`,
+    description: `${plural(items.length, 'field')} need attention. Nothing was saved.`,
     size: 'md',
     body: h(
       'ul',
@@ -149,21 +171,48 @@ async function save() {
   store.saving = true;
   paintTopbar();
   try {
-    const result = await api.save(store.draft);
-    initContent(result.content);
+    const result = await api.save(store.draft, store.revision);
+    initContent(result.content, { revision: result.revision });
     await refreshStatus();
-    toast(result.unchanged ? 'No changes to save.' : 'Saved. The previous version was backed up.', {
+    toast(result.unchanged ? 'No changes to save.' : 'Draft saved. The previous version was backed up. Publish when you are ready.', {
       kind: 'success',
-      action: result.backup ? { label: 'View backups', onClick: () => navigate('backups') } : undefined
+      action: result.unchanged ? undefined : { label: 'Publish', onClick: publish }
     });
     renderRoute();
   } catch (error) {
     if (error.code === 'validation_failed') showValidationErrors(error.details);
+    else if (error.code === 'revision_conflict') await handleConflict();
     else toast(error.message, { kind: 'error' });
   } finally {
     store.saving = false;
     paintTopbar();
   }
+}
+
+async function handleConflict() {
+  const reload = await confirmDialog({
+    title: 'This portfolio changed somewhere else',
+    message: 'Another device or tab saved a newer version, so your save was not applied.',
+    detail: 'Load the latest version to continue. Your unsaved edits here will be discarded.',
+    confirmLabel: 'Load latest version',
+    danger: true
+  });
+  if (reload) {
+    await reloadContent();
+    toast('Loaded the latest version.', { kind: 'info' });
+  }
+}
+
+function publish() {
+  if (isDirty()) {
+    toast('Save your changes before publishing.', { kind: 'info' });
+    return;
+  }
+  openPublishDialog({
+    onDone: async () => {
+      await reloadContent();
+    }
+  });
 }
 
 function reviewPopover() {
@@ -235,8 +284,21 @@ function paintTopbar() {
     topbarState.append(h('span', { class: 'save-state' }, h('span', { class: 'dot dot-ok' }), 'All changes saved'));
   }
 
+  if (store.draft && store.status) {
+    const pending = store.status.unpublishedChanges;
+    topbarState.append(h('span', { class: `save-state publish-state${pending ? ' is-pending' : ''}` }, h('span', { class: `dot ${pending ? 'dot-warn' : 'dot-ok'}` }), pending ? (store.status.published ? 'Not published' : 'Never published') : 'Live site up to date'));
+  }
+
+  if (publishButton) {
+    const pending = Boolean(store.status && store.status.unpublishedChanges);
+    publishButton.disabled = !store.draft || store.saving || (!pending && !dirty);
+    publishButton.classList.toggle('btn-primary', pending && !dirty);
+    publishButton.classList.toggle('btn-secondary', !(pending && !dirty));
+  }
+
   setBusy(saveButton, store.saving);
   saveButton.disabled = !dirty || store.saving;
+  if (publishButton && !publishButton.disabled && dirty) publishButton.disabled = true;
   document.title = `${dirty ? '\u2022 ' : ''}${currentRoute.label} \u00b7 Portfolio CMS`;
 }
 
@@ -252,11 +314,11 @@ function buildSidebar() {
     group.routes.push(route);
   }
 
-  const port = (store.session && new URL(store.session.origin).port) || window.location.port;
+  const user = store.session.user;
   return h(
     'aside',
     { class: 'sidebar', id: 'sidebar', 'aria-label': 'Primary' },
-    h('div', { class: 'brand' }, h('span', { class: 'brand-mark', 'aria-hidden': 'true' }), h('div', {}, h('p', { class: 'brand-name' }, 'Portfolio CMS'), h('p', { class: 'brand-sub' }, store.draft ? store.draft.site.navName : 'Local editor'))),
+    h('div', { class: 'brand' }, h('span', { class: 'brand-mark', 'aria-hidden': 'true' }), h('div', {}, h('p', { class: 'brand-name' }, 'Portfolio CMS'), h('p', { class: 'brand-sub' }, store.draft ? store.draft.site.navName : 'Remote editor'))),
     h(
       'nav',
       {},
@@ -271,7 +333,12 @@ function buildSidebar() {
         )
       )
     ),
-    h('div', { class: 'side-foot' }, h('span', { class: 'dot dot-ok' }), h('div', {}, h('p', { class: 'mono-sm' }, `127.0.0.1:${port}`), h('p', { class: 'side-foot-note' }, 'Local only. Nothing is published automatically.')))
+    h(
+      'div',
+      { class: 'side-foot user-foot' },
+      h('div', { class: 'user-chip' }, user.avatarUrl ? h('img', { src: user.avatarUrl, alt: '', referrerpolicy: 'no-referrer', width: 28, height: 28 }) : h('span', { class: 'user-initial', 'aria-hidden': 'true' }, (user.name || user.email).slice(0, 1).toUpperCase()), h('div', { class: 'user-text' }, h('p', { class: 'user-name' }, user.name), h('p', { class: 'side-foot-note', title: user.email }, user.email))),
+      h('button', { type: 'button', class: 'btn btn-ghost btn-sm signout', onclick: signOut }, icon('logout', 16), h('span', {}, 'Sign out'))
+    )
   );
 }
 
@@ -282,6 +349,7 @@ function buildShell() {
   saveButton = btn('Save changes', { variant: 'primary', iconName: 'save', onClick: save, disabled: true });
   previewButton = btn('Preview', { variant: 'secondary', iconName: 'panel', onClick: () => preview.toggle() });
   previewButton.setAttribute('aria-pressed', 'false');
+  publishButton = btn('Publish', { variant: 'secondary', iconName: 'globe', onClick: publish, disabled: true });
 
   preview = createPreview({
     onVisibilityChange(open) {
@@ -304,7 +372,7 @@ function buildShell() {
         { class: 'topbar' },
         menuButton,
         topbarState,
-        h('div', { class: 'topbar-actions' }, previewButton, h('a', { class: 'btn btn-secondary btn-icon', href: '/', target: '_blank', rel: 'noopener', title: 'Open the portfolio', 'aria-label': 'Open the portfolio in a new tab' }, icon('external', 18)), saveButton)
+        h('div', { class: 'topbar-actions' }, previewButton, publishButton, h('a', { class: 'btn btn-secondary btn-icon', href: '/', target: '_blank', rel: 'noopener', title: 'Open the public portfolio', 'aria-label': 'Open the public portfolio in a new tab' }, icon('external', 18)), saveButton)
       ),
       main
     ),
@@ -336,16 +404,91 @@ function fatal(message) {
   );
 }
 
-async function boot() {
+async function signOut() {
+  if (isDirty()) {
+    const leave = await confirmDialog({ title: 'Sign out with unsaved changes?', message: 'Your unsaved draft edits will be lost.', confirmLabel: 'Sign out', danger: true });
+    if (!leave) return;
+  }
   try {
-    store.session = await api.session();
+    await api.logout();
+  } catch {
+    toast('Could not reach the server to end the session.', { kind: 'error' });
+  }
+  window.location.assign('/admin/');
+}
+
+function onSessionLost() {
+  if (sessionModalOpen || !store.session) return;
+  sessionModalOpen = true;
+  const status = h('p', { class: 'muted', role: 'status' });
+  const check = btn('I have signed in', { variant: 'primary', iconName: 'check', onClick: async () => {
+    setBusy(check, true);
+    try {
+      const session = await api.session();
+      if (session.authenticated && session.user.email === store.session.user.email) {
+        modal.close();
+        toast('Signed in again. Your draft is untouched.', { kind: 'success' });
+      } else if (session.authenticated) {
+        status.textContent = 'That is a different account. Reload to switch accounts.';
+      } else {
+        status.textContent = 'Not signed in yet. Finish signing in on the other tab first.';
+      }
+    } catch (error) {
+      status.textContent = error.message;
+    } finally {
+      setBusy(check, false);
+    }
+  } });
+  const modal = openModal({
+    title: 'Your session ended',
+    description: 'Sign in again in a new tab. This tab keeps your unsaved edits.',
+    size: 'sm',
+    body: [h('a', { class: 'btn btn-secondary', href: '/api/auth/login', target: '_blank', rel: 'noopener' }, icon('external', 16), h('span', {}, 'Sign in in a new tab')), status],
+    footer: [btn('Reload page', { variant: 'ghost', onClick: () => window.location.reload() }), check],
+    onClose: () => {
+      sessionModalOpen = false;
+    }
+  });
+}
+
+function startHeartbeat() {
+  const ping = async () => {
+    if (document.visibilityState !== 'visible') return;
+    try {
+      const session = await api.session();
+      if (!session.authenticated) onSessionLost();
+    } catch {
+      return;
+    }
+  };
+  heartbeat = setInterval(ping, 4 * 60 * 1000);
+  document.addEventListener('visibilitychange', ping);
+}
+
+function renderLogin(reason) {
+  const params = new URLSearchParams(window.location.search);
+  const authError = params.get('auth_error');
+  if (params.has('auth_error')) window.history.replaceState(null, '', window.location.pathname);
+  $('#app').replaceChildren(loginView({ reason, authError }));
+}
+
+async function boot() {
+  let session;
+  try {
+    session = await api.session();
   } catch (error) {
     fatal(error.message);
     return;
   }
+  if (!session.authenticated) {
+    renderLogin(session.reason);
+    return;
+  }
+  store.session = { ...session, maxUploadBytes: session.limits.maxUploadBytes };
+  setUnauthorizedHandler(onSessionLost);
   try {
-    const { content } = await api.content();
-    initContent(content);
+    const { content, revision, published } = await api.content();
+    initContent(content, { revision, published });
   } catch (error) {
     loadError = error;
     initContent(null);
@@ -362,6 +505,7 @@ async function boot() {
   });
   renderRoute();
   refreshStatus();
+  startHeartbeat();
 }
 
 boot();

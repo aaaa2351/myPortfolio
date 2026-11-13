@@ -67,20 +67,20 @@ export function dashboardView(context) {
       ? h('ul', { class: 'recent' }, recent.map((entry) => h('li', {}, h('a', { href: `#/${entry.route}` }, h('span', { class: 'recent-name' }, entry.label), h('span', { class: 'recent-kind' }, entry.kind), h('span', { class: 'mono-sm' }, timeAgo(entry.at))))))
       : h('p', { class: 'muted' }, 'Nothing has been saved yet.');
 
-    const siteUrl = (store.session && store.session.origin) || window.location.origin;
+    const siteUrl = window.location.origin;
     const statusBody = h(
       'div',
       { class: 'status-list' },
       statusRow({ tone: dirty ? 'warn' : 'ok', label: 'Content', value: dirty ? `${plural(changes.length, 'unsaved change')} in this draft` : `All changes saved \u00b7 ${timeAgo(content.meta.updatedAt)}` }),
-      statusRow({ tone: 'ok', label: 'Local site', value: h('a', { class: 'mono-sm link', href: '/', target: '_blank', rel: 'noopener' }, `${siteUrl}/`) }),
+      statusRow({ tone: 'ok', label: 'Public site', value: h('a', { class: 'mono-sm link', href: '/', target: '_blank', rel: 'noopener' }, `${siteUrl}/`) }),
       statusRow({
         tone: !status ? 'idle' : missing.length ? 'warn' : 'ok',
         label: 'Image files',
         value: !status ? 'Status unavailable' : missing.length ? `${missing.length} referenced ${missing.length === 1 ? 'image is' : 'images are'} missing from public/` : `All ${status.localImagesReferenced} local images found`,
         route: 'images'
       }),
-      statusRow({ tone: status && status.dataValid ? 'ok' : 'warn', label: 'Data file', value: status ? `public/data/portfolio.json \u00b7 ${formatBytes(status.fileBytes)}` : 'Status unavailable' }),
-      statusRow({ tone: 'ok', label: 'Deployment', value: 'Static files in public/ are ready to deploy. Nothing is pushed automatically.' })
+      statusRow({ tone: status && status.dataValid ? 'ok' : 'warn', label: 'Stored draft', value: status ? `Revision ${status.revision} \u00b7 ${formatBytes(status.contentBytes)}` : 'Status unavailable' }),
+      statusRow({ tone: !status ? 'idle' : status.unpublishedChanges ? 'warn' : 'ok', label: 'Publishing', value: !status ? 'Status unavailable' : status.unpublishedChanges ? (status.published ? 'Saved changes are not live yet' : 'Nothing has been published yet') : `Live site matches the saved draft \u00b7 ${timeAgo(status.published.publishedAt)}`, route: 'publishing' })
     );
 
     const missingList = missing.length
@@ -95,7 +95,7 @@ export function dashboardView(context) {
       h('a', { class: 'shortcut', href: href || '#', onclick: onClick ? (event) => { event.preventDefault(); onClick(); } : null }, icon(iconName, 18), h('span', {}, label));
 
     root.replaceChildren(
-      pageHeader({ title: 'Dashboard', description: 'Your portfolio content, saved state and local site at a glance.' }),
+      pageHeader({ title: 'Dashboard', description: 'Your portfolio content, saved draft and live site at a glance.' }),
       strip,
       h(
         'div',

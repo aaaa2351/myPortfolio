@@ -1,15 +1,39 @@
-const crypto = require('crypto');
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
-const SAFE_METHODS = new Set(['GET', 'HEAD']);
+const ADMIN_CSP = [
+  "default-src 'none'",
+  "script-src 'self'",
+  "style-src 'self' https://fonts.googleapis.com",
+  'font-src https://fonts.gstatic.com',
+  "img-src 'self' data: blob: https:",
+  "connect-src 'self'",
+  "frame-src 'self'",
+  "form-action 'self'",
+  "base-uri 'none'",
+  "frame-ancestors 'none'"
+].join('; ');
+
+const PUBLIC_CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' https://fonts.googleapis.com https://cdnjs.cloudflare.com",
+  'font-src https://fonts.gstatic.com https://cdnjs.cloudflare.com',
+  "img-src 'self' data: https:",
+  "connect-src 'self'",
+  "form-action 'none'",
+  "base-uri 'self'",
+  "frame-ancestors 'self'"
+].join('; ');
+
+const PERMISSIONS_POLICY = 'camera=(), microphone=(), geolocation=(), payment=()';
 
 function createSecurity(config) {
-  const csrfToken = crypto.randomBytes(32).toString('hex');
-  const tokenBuffer = Buffer.from(csrfToken);
+  function allowedHosts() {
+    return new Set([`127.0.0.1:${config.port}`, `localhost:${config.port}`]);
+  }
 
-  const allowedHosts = () => new Set([`127.0.0.1:${config.port}`, `localhost:${config.port}`]);
-  const allowedOrigins = () => new Set([`http://127.0.0.1:${config.port}`, `http://localhost:${config.port}`]);
-
-  function hostGuard(req, res, next) {
+  function localHostGuard(req, res, next) {
+    if (!config.localHostGuard) return next();
     const host = String(req.headers.host || '').toLowerCase();
     if (!allowedHosts().has(host)) {
       res.status(403).type('text/plain').send('Forbidden');
@@ -22,65 +46,40 @@ function createSecurity(config) {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'same-origin');
     res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
-    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
-    if (req.path === '/admin' || req.path.startsWith('/admin/')) {
-      res.setHeader('Content-Security-Policy', [
-        "default-src 'none'",
-        "script-src 'self'",
-        "style-src 'self' https://fonts.googleapis.com",
-        "font-src https://fonts.gstatic.com",
-        "img-src 'self' data: blob: https:",
-        "connect-src 'self'",
-        "frame-src 'self'",
-        "form-action 'none'",
-        "base-uri 'none'",
-        "frame-ancestors 'none'"
-      ].join('; '));
+    res.setHeader('Permissions-Policy', PERMISSIONS_POLICY);
+    if (config.secureCookies) res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
+    const isAdmin = req.path === '/admin' || req.path.startsWith('/admin/');
+    if (isAdmin) {
+      res.setHeader('Content-Security-Policy', ADMIN_CSP);
       res.setHeader('X-Frame-Options', 'DENY');
+      res.setHeader('X-Robots-Tag', 'noindex, nofollow');
     } else if (!req.path.startsWith('/api')) {
-      res.setHeader('Content-Security-Policy', [
-        "default-src 'self'",
-        "script-src 'self'",
-        "style-src 'self' https://fonts.googleapis.com https://cdnjs.cloudflare.com",
-        "font-src https://fonts.gstatic.com https://cdnjs.cloudflare.com",
-        "img-src 'self' data: https:",
-        "connect-src 'self'",
-        "form-action 'none'",
-        "base-uri 'self'",
-        "frame-ancestors 'self'"
-      ].join('; '));
+      res.setHeader('Content-Security-Policy', PUBLIC_CSP);
       res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     }
     next();
   }
 
-  function apiGuard(req, res, next) {
-    res.setHeader('Cache-Control', 'no-store');
+  function isSameOrigin(req) {
     const fetchSite = req.headers['sec-fetch-site'];
-    if (fetchSite && fetchSite !== 'same-origin' && fetchSite !== 'none') {
-      res.status(403).json({ error: 'Cross-site requests are not allowed.', code: 'cross_site' });
-      return;
+    if (fetchSite && fetchSite !== 'same-origin' && fetchSite !== 'none') return false;
+    const origin = req.headers.origin;
+    if (!origin) return false;
+    let parsed;
+    try {
+      parsed = new URL(origin);
+    } catch {
+      return false;
     }
-    if (!SAFE_METHODS.has(req.method)) {
-      const origin = req.headers.origin;
-      if (!origin || !allowedOrigins().has(origin)) {
-        res.status(403).json({ error: 'Requests must come from the local admin page.', code: 'bad_origin' });
-        return;
-      }
-    }
-    next();
+    if (parsed.origin === config.appUrl) return true;
+    return parsed.host === String(req.headers.host || '').toLowerCase();
   }
 
-  function csrfGuard(req, res, next) {
-    const supplied = Buffer.from(String(req.headers['x-csrf-token'] || ''));
-    if (supplied.length !== tokenBuffer.length || !crypto.timingSafeEqual(supplied, tokenBuffer)) {
-      res.status(403).json({ error: 'Security token is missing or expired. Reload the admin page.', code: 'csrf' });
-      return;
-    }
-    next();
+  function isSafeMethod(method) {
+    return SAFE_METHODS.has(method);
   }
 
-  return { csrfToken, hostGuard, securityHeaders, apiGuard, csrfGuard };
+  return { localHostGuard, securityHeaders, isSameOrigin, isSafeMethod };
 }
 
-module.exports = { createSecurity };
+module.exports = { createSecurity, ADMIN_CSP, PUBLIC_CSP, PERMISSIONS_POLICY };
